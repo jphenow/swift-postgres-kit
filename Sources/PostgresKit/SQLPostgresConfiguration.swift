@@ -24,7 +24,7 @@ public struct SQLPostgresConfiguration {
         }
         try self.init(url: url)
     }
-    
+
     /// Create a ``SQLPostgresConfiguration`` from a properly formatted URL.
     ///
     /// The allowed URL format is:
@@ -48,13 +48,23 @@ public struct SQLPostgresConfiguration {
         }
         let password = comp.password, port = comp.port ?? Self.ianaPortNumber
         let tls: PostgresConnection.Configuration.TLS
-        switch (comp.queryItems ?? []).first(where: { ["ssl", "tls"].contains($0.name.lowercased()) })?.value ?? "true" {
+        switch (comp.queryItems ?? []).first(where: { "sslmode" == $0.name.lowercased() })?.value ?? "none" {
+        case "disable": tls = .disable
+        // case "allow": tls = .disable
+        case "prefer":  tls = try .prefer(.init(configuration: .makeClientConfiguration()))
         case "require": tls = try .require(.init(configuration: .makeClientConfiguration()))
-        case "true":  tls = try .prefer(.init(configuration: .makeClientConfiguration()))
-        case "false": tls = .disable
-        default: throw URLError(.badURL, userInfo: [NSURLErrorFailingURLErrorKey: url, NSURLErrorFailingURLStringErrorKey: url.absoluteString])
+        // case "verify-ca": tls = .disable
+        // case "verify-full": tls = .disable
+        default:
+            switch (comp.queryItems ?? []).first(where: { ["ssl", "tls"].contains($0.name.lowercased()) })?.value ?? "true" {
+            case "require": tls = try .require(.init(configuration: .makeClientConfiguration()))
+            case "true":  tls = try .prefer(.init(configuration: .makeClientConfiguration()))
+            case "false": tls = .disable
+            default: throw URLError(.badURL, userInfo: [NSURLErrorFailingURLErrorKey: url, NSURLErrorFailingURLStringErrorKey: url.absoluteString])
+            }
         }
-        
+
+
         self.init(
             hostname: hostname, port: port,
             username: username, password: password,
@@ -62,7 +72,7 @@ public struct SQLPostgresConfiguration {
             tls: tls
         )
     }
-    
+
     /// Create a ``SQLPostgresConfiguration`` for connecting to a server with a hostname and optional port.
     ///
     /// This specifies a TCP connection. If you're unsure which kind of connection you want, you almost
@@ -75,7 +85,7 @@ public struct SQLPostgresConfiguration {
     ) {
         self.init(coreConfiguration: .init(host: hostname, port: port, username: username, password: password, database: database, tls: tls))
     }
-    
+
     /// Create a ``SQLPostgresConfiguration`` for connecting to a server through a UNIX domain socket.
     public init(
         unixDomainSocketPath: String,
@@ -84,7 +94,7 @@ public struct SQLPostgresConfiguration {
     ) {
         self.init(coreConfiguration: .init(unixSocketPath: unixDomainSocketPath, username: username, password: password, database: database))
     }
-    
+
     /// Create a ``SQLPostgresConfiguration`` for establishing a connection to a server over a
     /// preestablished `NIOCore/Channel`.
     ///
